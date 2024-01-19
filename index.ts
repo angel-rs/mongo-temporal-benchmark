@@ -1,5 +1,6 @@
-import { Temporal, Intl, toTemporalInstant } from '@js-temporal/polyfill';
+import { Temporal } from '@js-temporal/polyfill';
 import mongoose from 'mongoose';
+import { faker } from '@faker-js/faker';
 
 mongoose.connect('mongodb://127.0.0.1:27017/mongo-playground');
 
@@ -20,48 +21,73 @@ function temporal(date: string) {
   return Temporal.Now.plainDateTimeISO().toString()
 }
 
-async function findOrCreatePlainDate(data) {
-  const value = await PlainDate.findOne(data);
-  return value || PlainDate.create(data)
+// query name \ duration
+const metrics: Record<string, number> = {}
+
+async function benchmark(name: string, query, withIndex = false) {
+  // TODO: run ten times & get the average duration
+  if (withIndex) {
+    plainDateSchema.index({ date: 1 })
+  } else {
+    plainDateSchema.clearIndexes()
+  }
+
+  const stats = await PlainDate.find(query).explain('executionStats')
+  // @ts-expect-error
+  metrics[name] = Number(stats?.executionStats?.executionTimeMillis || -1)
 }
 
-async function find(name, query) {
-  console.log(`Querying '${name}'`)
-  const results = (await PlainDate.find(query)).map((x) => x.date)
-  console.log(`Results: (${results.length}) ${results}\n`)
-  return results
+async function seedDB() {
+  const dataCount = 5_000_000
+
+  const count = await PlainDate.estimatedDocumentCount()
+  if (count >= dataCount) {
+    console.log('DB already seeded')
+    return
+  }
+
+  for (let i = 0; i < dataCount; i += 1) {
+    const date = faker.date.between({ from: '2018-01-01T00:00:00', to: '2025-01-01T00:00:00' }).toISOString().replace('Z', '')
+    await PlainDate.create({ date })
+
+    if (i % 1000 === 0) {
+      console.log(`Seeded ${i} records`)
+    }
+  }
+
+  console.log('DB seeded!')
 }
 
 async function main() {
-  await Promise.all([
-    findOrCreatePlainDate({ date: temporal('2021-01-01') }),
-    findOrCreatePlainDate({ date: temporal('2021-01-02') }),
-    findOrCreatePlainDate({ date: temporal('2021-02-01') }),
-    findOrCreatePlainDate({ date: temporal('2021-03-01') }),
-    findOrCreatePlainDate({ date: temporal('2022-01-01') }),
-    findOrCreatePlainDate({ date: temporal('2022-02-01') }),
-    findOrCreatePlainDate({ date: temporal('2022-03-01') }),
-    findOrCreatePlainDate({ date: temporal('2023-01-01') }),
-    findOrCreatePlainDate({ date: temporal('2023-02-01') }),
-    findOrCreatePlainDate({ date: temporal('2023-03-01') }),
-    findOrCreatePlainDate({ date: temporal('2024-01-01') }),
-    findOrCreatePlainDate({ date: temporal('2024-02-01') }),
-    findOrCreatePlainDate({ date: temporal('2024-03-01') }),
-  ])
+  // await seedDB()
 
-  console.log('All records', (await PlainDate.find({})).map((x) => x.date))
+  await benchmark('querying specific year', { date: { $regex: /^2021.*/ } })
+  await benchmark('querying specific year (with date index)', { date: { $regex: /^2021.*/ } }, true)
 
-  await find('querying specific year', { date: { $regex: /^2021.*/ } })
-  await find('querying specific year, month', { date: { $regex: /^2021-01.*/ } })
-  await find('querying specific year, month, date', { date: { $regex: /^2021-01-01.*/ } })
-  await find('querying specific date time', { date: { $regex: /^2021-01-01T00:00:00*/ } })
-  await find('querying date time range', { date: { $gte: '2024-01-01T00:00:00', $lte: '2024-02-01T00:00:00' } })
+  await benchmark('querying specific year, month', { date: { $regex: /^2021-01.*/ } })
+  await benchmark('querying specific year, month', { date: { $regex: /^2021-01.*/ } }, true)
+
+  await benchmark('querying specific year, month, date', { date: { $regex: /^2021-01-01.*/ } })
+  await benchmark('querying specific year, month, date', { date: { $regex: /^2021-01-01.*/ } }, true)
+
+  await benchmark('querying specific date time', { date: { $regex: /^2021-01-01T00:00:00*/ } })
+  await benchmark('querying specific date time', { date: { $regex: /^2021-01-01T00:00:00*/ } }, true)
+
+  await benchmark('querying date time range', { date: { $gte: '2024-01-01T00:00:00', $lte: '2024-02-01T00:00:00' } })
+  await benchmark('querying date time range', { date: { $gte: '2024-01-01T00:00:00', $lte: '2024-02-01T00:00:00' } }, true)
+
   // this following query doesn't work since we compare 2024-02-01T00:00:00 to 2024-02-01
   // 2024-02-01T00:00:00 is greater than 2024-02-01, hence it doesn't make it to the final query
   // the only way for this to work is we store the temporal as a plain date with yyyy-mm-dd format
-  // await find('querying date range', { date: { $gte: '2024-01-01', $lte: '2024-02-01' } })
+  // await benchmark('querying date range', { date: { $gte: '2024-01-01', $lte: '2024-02-01' } })
 
   // TODO: benchmark performance & compare with different approaches
+  // TODO: do the same for date ranges
+
+  console.log('Results:\n')
+  Object.keys(metrics).forEach((name) => {
+    console.log(`Query: ${name}, Duration: ${metrics[name]}ms`)
+  })
 
   // @ts-ignore
   process.exit(0)
