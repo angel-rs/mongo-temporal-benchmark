@@ -81,6 +81,7 @@ async function main() {
   // the only way for this to work is we store the temporal as a plain date with yyyy-mm-dd format
   // await benchmark('querying date range', { date: { $gte: '2024-01-01', $lte: '2024-02-01' } })
 
+  // TODO: do the same thing with name JS Date & compare performance
   // TODO: benchmark performance & compare with different approaches
   // TODO: do the same for date ranges
 
