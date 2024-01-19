@@ -1,0 +1,22 @@
+{
+  "name": "mongo-playground",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "tsx index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@js-temporal/polyfill": "^0.4.4",
+    "mongo": "^0.1.0",
+    "mongoose": "^8.1.0",
+    "tsx": "^4.7.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
